@@ -1,0 +1,2528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP Ultrasound Assistant</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Aptos, "Aptos Display", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(rgba(6, 10, 35, 0.56), rgba(6, 10, 35, 0.56)),
+        url("./assets/bg.png")
+        center center / cover no-repeat fixed;
+      padding: 24px;
+    }
+
+    .chat-widget {
+      position: fixed;
+      right: 24px;
+      bottom: 88px;
+      width: min(92vw, 390px);
+      max-height: min(78vh, 620px);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      transform-origin: bottom right;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 40;
+    }
+
+    .chat-widget.closed {
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(14px) scale(0.96);
+    }
+
+    .chat-header {
+      background: #003366;
+      color: white;
+      border-radius: 16px 16px 0 0;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .chat-header .avatar {
+      width: 44px;
+      height: 44px;
+      background: #0b4b96;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .chat-header .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .chat-header .info h2 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .chat-header .info p {
+      font-size: 13px;
+      opacity: 0.75;
+      margin-top: 2px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #4cde80;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+    }
+
+
+    .chat-box {
+      background: white;
+      border-left: 1px solid #dde3ea;
+      border-right: 1px solid #dde3ea;
+      min-height: 130px;
+      max-height: min(360px, 42vh);
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      scroll-behavior: smooth;
+    }
+
+    .message {
+      display: flex;
+      gap: 10px;
+      max-width: 88%;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    .message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message .bubble {
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.bot .bubble {
+      background: #f0f4f8;
+      color: #1a1a2e;
+      border-bottom-left-radius: 4px;
+    }
+
+    .message.user .bubble {
+      background: #003366;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message .icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      align-self: flex-end;
+    }
+
+    .message.bot .icon { background: #003366; color: white; font-size: 14px; }
+    .message.user .icon { background: #cce0ff; font-size: 14px; }
+
+    .message.bot .icon {
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .message.bot .icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .typing .bubble {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      padding: 12px 16px;
+    }
+
+    .typing .dot {
+      width: 7px; height: 7px;
+      background: #888;
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+
+    .typing .dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-6px); }
+    }
+
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 14px;
+      background: white;
+      border-left: 1px solid #dde3ea;
+      border-right: 1px solid #dde3ea;
+    }
+
+    .suggestion-btn {
+      background: #e8f0fe;
+      color: #003366;
+      border: 1px solid #c5d8f8;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .suggestion-btn:hover { background: #c5d8f8; }
+
+    .chat-footer {
+      background: white;
+      border: 1px solid #dde3ea;
+      border-top: none;
+      border-radius: 0 0 16px 16px;
+      padding: 12px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .chat-footer textarea {
+      flex: 1;
+      border: 1px solid #dde3ea;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      max-height: 120px;
+      line-height: 1.4;
+    }
+
+    .chat-footer textarea:focus { border-color: #003366; }
+
+    .send-btn {
+      background: #003366;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      width: 42px;
+      height: 42px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .send-btn:hover { background: #004488; }
+    .send-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+    .send-btn svg { width: 18px; height: 18px; fill: white; }
+
+    .powered-by {
+      display: none;
+    }
+
+    .chat-launcher {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      width: 58px;
+      height: 58px;
+      border: none;
+      border-radius: 50%;
+      background: #003366;
+      color: white;
+      font-size: 24px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .chat-launcher:hover {
+      background: #004488;
+      transform: translateY(-2px);
+    }
+
+    .chat-launcher.open {
+      background: #0f2852;
+    }
+
+    .inline-action-btn {
+      border: 1px solid #003366;
+      background: #eef5ff;
+      color: #003366;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .inline-action-btn:hover {
+      background: #dce9ff;
+    }
+
+    .bot-actions {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    @media (max-width: 600px) {
+      .chat-widget {
+        right: 12px;
+        left: 12px;
+        width: auto;
+        bottom: 82px;
+      }
+
+      .chat-launcher {
+        right: 12px;
+        bottom: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-widget closed" id="chatWidget">
+
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="avatar"><img id="botAvatarHeader" alt="ESP logo"></div>
+      <div class="info">
+        <h2>ESP Support Chat</h2>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-box" id="chatBox">
+      <div class="message bot">
+        <div class="icon"><img id="botAvatarWelcome" alt="ESP logo"></div>
+        <div class="bubble">
+          Hi! I'm the ESP Ultrasound Assistant. I can answer questions about our webinars, X-ZONE, exams, refunds, and more. How can I help you today?
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggestion chips -->
+    <div class="suggestions" id="suggestions">
+      <button class="suggestion-btn" onclick="sendSuggestion(this)">What's included in registration?</button>
+      <button class="suggestion-btn" onclick="sendSuggestion(this)">When do I get my workbook?</button>
+      <button class="suggestion-btn" onclick="sendSuggestion(this)">What is X-ZONE?</button>
+      <button class="suggestion-btn" onclick="sendSuggestion(this)">Can I get a refund?</button>
+    </div>
+
+    <!-- Input -->
+    <div class="chat-footer">
+      <textarea id="userInput" rows="1" placeholder="Type your question…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </div>
+
+    <!-- <div class="powered-by">Powered by Claude AI</div> -->
+  </div>
+  <button class="chat-launcher" id="chatLauncher" onclick="toggleChat()" aria-label="Open chat">💬</button>
+
+  <script>
+    const BOT_AVATAR = "./assets/avatar.png";
+
+    const KNOWLEDGE_BASE = [
+      {
+        id: 'greeting',
+        patterns: ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'yo'],
+        responses: [
+          'Hi! I can help with webinar dates, course options, pricing, X-ZONE, textbooks, digital quiz cards, video case studies, on-demand CMEs, and refund/transfer policy. What do you want to check first?',
+          'Hey! Ask me anything about ESP webinars, study tools, X-ZONE access, pricing, and policies.',
+          'Welcome! I can guide you on schedule, registration, X-ZONE, textbooks, CMEs, and more.'
+        ]
+      },
+      {
+        id: 'next_webinar',
+        patterns: [
+          'next webinar', 'upcoming webinar', 'when is the next course', 'next class date',
+          'webinar schedule', 'when is spi webinar', 'what dates are available', 'when is next class',
+          'whens the next webinar', 'next dates'
+        ],
+        responses: [
+          'The next listed webinar session is May 15-17. ESP also has later sessions (for example June 20-21 and July 11-12 for selected courses). If you tell me your specialty, I can help narrow the best date.',
+          'The next webinar block is May 15-17. After that, selected courses run again in June and July.',
+          'Next available session is May 15-17. Share your course and I can match you to the closest date.'
+        ]
+      },
+      {
+        id: 'registration_includes',
+        patterns: [
+          'what is included', 'registration includes', 'what comes with registration',
+          'what comes with webinar', 'what do i receive', 'what do i get with registration',
+          'what do i get when i register', 'what do i get with my webinar'
+        ],
+        responses: [
+          'Registration includes a mailed workbook, live interactive webinar access, 6 weeks of X-ZONE practice questions, and 12 SDMS Continuing Education Credits.',
+          'With registration, you get your workbook, live webinar seat, 6 weeks of X-ZONE, and 12 SDMS CME credits.',
+          'Each registration includes: workbook + live review webinar + 6-week X-ZONE access + 12 CME credits.'
+        ]
+      },
+      {
+        id: 'workbook_shipping',
+        patterns: [
+          'when will i receive workbook', 'workbook shipping', 'when does workbook arrive',
+          'where is my workbook', 'ship my workbook', 'when do i get my workbook'
+        ],
+        responses: [
+          'Workbooks typically arrive about 1-2 weeks before the webinar. Shipping is in registration order, and tracking is sent by email.',
+          'Workbook shipping starts ahead of the webinar, in registration order. If you register early, yours typically ships earlier.',
+          'ESP mails workbooks before the event and prioritizes by registration date; tracking info is emailed.'
+        ]
+      },
+      {
+        id: 'xzone',
+        patterns: [
+          'what is x-zone', 'xzone', 'practice platform', 'activate x-zone', 'how long is x-zone',
+          'online practice questions', 'whats the xzone', 'x zone access', 'how can i get xzone',
+          'where do i buy xzone', 'how do i register for xzone', 'get xzone'
+        ],
+        responses: [
+          'X-ZONE is ESP’s online bank of registry-style practice questions organized by exam topic so you can target weak areas and build speed.',
+          'You can get X-ZONE under Study Tools on ESP. Standalone access is 1-day ($39), 5-day ($79), or 15-day ($109). If you register for a webinar, 6 weeks of X-ZONE is included.',
+          'To access X-ZONE, go to Study Tools > X-ZONE and choose a subscription length (1, 5, or 15 days). Webinar registration also includes 6 weeks of access.',
+          'X-ZONE is ESP’s question bank. You can purchase it directly from Study Tools, or get 6-week access included with webinar registration (activate within 9 months).'
+        ]
+      },
+      {
+        id: 'exam_timing',
+        patterns: [
+          'when should i take exam', 'when do i test', 'after webinar when exam',
+          'best time for exam', 'how long after webinar'
+        ],
+        responses: [
+          'Most people do best taking the exam after a short review period: roughly a couple of weeks up to about 2-3 months after the webinar.',
+          'A good target is a few weeks to about 3 months after the webinar, after you review notes and X-ZONE.',
+          'Usually best not immediately and not too late; aim for a focused review window up to about 2-3 months.'
+        ]
+      },
+      {
+        id: 'after_pass',
+        patterns: [
+          'after i pass', 'i passed now what', 'free shirt', 'tshirt', 'send testimonial',
+          'headshot pass result'
+        ],
+        responses: [
+          'After you pass, email your headshot, passing result, and a short testimonial to info@esp-inc.com. ESP will send you a complimentary t-shirt.',
+          'Once you pass, send your pass result + headshot + testimonial to info@esp-inc.com for the ESP t-shirt.',
+          'Celebrate with ESP: email your passing result and headshot to info@esp-inc.com and include a short testimonial.'
+        ]
+      },
+      {
+        id: 'refund_transfer',
+        patterns: [
+          'refund', 'cancel registration', 'reschedule', 'transfer course', 'money back',
+          'refund policy'
+        ],
+        responses: [
+          "Transfers within the same calendar year are free. Refunds (minus a $50 fee) are available only if your workbook has not shipped and X-ZONE has not been activated.",
+          "Need to change plans? Same-year transfers are free. Refunds are possible (less $50) only before workbook shipment and before X-ZONE activation.",
+          "Refund eligibility depends on two things: workbook not shipped and X-ZONE not activated. Otherwise refunds are not available."
+        ]
+      },
+      {
+        id: 'recording_policy',
+        patterns: [
+          'can i record', 'audio tape', 'video recording', 'record webinar', 'save webinar recording'
+        ],
+        responses: [
+          'Recording webinars (audio or video) is not allowed under the Terms of Use.',
+          'Audio/video recording is prohibited for ESP webinars.',
+          'No recording is allowed during the webinar per ESP Terms of Use.'
+        ]
+      },
+      {
+        id: 'textbook_required',
+        patterns: [
+          'need textbook', 'is textbook required', 'understanding ultrasound physics required',
+          'do i need the book', 'is the textbook required for webinar'
+        ],
+        responses: [
+          'The textbook is helpful but not required to complete the webinar prep course.',
+          'No, the textbook is optional for webinar completion.',
+          'You do not need the textbook to take the webinar, but many learners use it as extra support.'
+        ]
+      },
+      {
+        id: 'textbooks',
+        patterns: [
+          'textbook', 'textbooks', 'what are the textbooks', 'whats the textbook',
+          'book options', 'study books', 'understanding ultrasound physics', 'art of vascular ultrasound'
+        ],
+        responses: [
+          'Understanding Ultrasound Physics (4th Edition) is $129; The Art of Vascular Ultrasound is $175. Bulk orders: 5–10 books 5% off; 11–20 books 15% off; 21+ books 25% off.',
+          'ESP’s main textbooks are UUP ($129) and The Art of Vascular Ultrasound ($175), with bulk discounts at 5%, 15%, and 25% by quantity tier.',
+          'Textbook list prices are $129 (UUP) and $175 (vascular). Volume discounts apply for bulk orders.'
+        ]
+      },
+      {
+        id: 'study_tools',
+        patterns: [
+          'study tools', 'what tools do you have', 'digital products', 'practice resources',
+          'quiz cards', 'video case studies', 'what does esp offer besides webinars'
+        ],
+        responses: [
+          'ESP study tools include X-ZONE practice questions, Digital Quiz Cards (Brainscape, $59 for 90 days), Adult Echo Digital Video Case Studies ($159 first year), textbooks, and On-Demand CMEs.',
+          'Study Tools includes X-ZONE, Digital Quiz Cards, textbooks, and Adult Echo Video Case Studies; CMEs are also available on-demand.',
+          'Beyond webinars, ESP offers X-ZONE, quiz cards, video case studies, textbooks, and on-demand CME options.'
+        ]
+      },
+      {
+        id: 'quiz_cards',
+        patterns: [
+          'digital quiz cards', 'quiz cards', 'brainscape', 'flash cards', 'spaced repetition'
+        ],
+        responses: [
+          'Digital Quiz Cards use Brainscape spaced repetition. Pricing is $59 per course for 90-day access, with offerings across the registry specialties.',
+          'Quiz Cards are delivered on Brainscape and cost $59 per course for 90 days.',
+          'ESP Digital Quiz Cards are spaced-repetition cards on Brainscape, priced at $59/course (90-day access).'
+        ]
+      },
+      {
+        id: 'video_cases',
+        patterns: [
+          'video case studies', 'adult echo test and learn', 'adult echo digital cases',
+          'echo videos', 'learning in motion'
+        ],
+        responses: [
+          'Adult Echo Test & Learn includes 90+ cardiac pathologies and 190+ video clips in 13 categories. Price is $159 for the first year, then $11.99 annual renewal.',
+          'Adult Echo Video Case Studies are $159 for year one, then $11.99/year to renew.',
+          'The Adult Echo digital cases include 190+ clips and cost $159 for the first year.'
+        ]
+      },
+      {
+        id: 'courses',
+        patterns: [
+          'what courses do you offer', 'course list', 'specialties available',
+          'which review courses', 'courses', 'course options'
+        ],
+        responses: [
+          'ESP offers review courses in Ultrasound Physics, Abdominal, Adult Echo, Breast, Fetal Echo, Musculoskeletal, OB/GYN, Pediatric Echo, Pediatric Sonography, and Vascular Technology.',
+          'Course lineup includes SPI physics, abdominal, adult echo, OB/GYN, vascular, breast, fetal echo, pediatric echo, pediatric, and MSK.',
+          'ESP has 10 main review specialties across physics, echo, vascular, OB/GYN, pediatric, and more.'
+        ]
+      },
+      {
+        id: 'pricing',
+        patterns: [
+          'pricing', 'course price', 'webinar price', 'bundle save',
+          'how much is a webinar', 'how much for a webinar', 'how much does a webinar',
+          'how much is the webinar', 'how much for the webinar', 'how much to register',
+          'how much is a course', 'how much for a course',
+          'cost of webinar', 'webinar cost', 'cost of a course', 'course cost'
+        ],
+        responses: [
+          'Webinar pricing: Core courses $325, Specialty courses $375, and MSK MD-led course $450. Bundle pricing can save $50 per course when registering for both AM and PM courses in the same 3-day session.',
+          'Price ranges are typically $325 to $450 depending on course type. Bundle sessions can reduce price by $50 per course.',
+          'Core courses are $325, specialty courses are $375, and the MD-led MSK course is $450.'
+        ]
+      },
+      {
+        id: 'cmes',
+        patterns: [
+          'cme', 'continuing education', 'on demand cme', 'credits available', 'on-demand cmes'
+        ],
+        responses: [
+          'ESP offers live webinar CME credit (12 SDMS CMEs per course) and On-Demand CMEs with self-paced courses (typically 1 to 7.5 credits) and a 90-day completion window. Webinar CME certificates are usually available around 2 weeks after the webinar.',
+          'You can earn CMEs through live webinars or On-Demand CME courses you complete on your own schedule.',
+          'CME options include 12-credit live webinar courses and on-demand modules with a 90-day access window.'
+        ]
+      },
+      {
+        id: 'ama_credits',
+        patterns: [
+          'ama', 'ama pra', 'physician credit', 'category 1 credit'
+        ],
+        responses: [
+          'If you need AMA PRA Category 1 Credits, ESP lists an add-on option of $100 per weekend for eligible sessions.',
+          'AMA PRA Category 1 credit is available as an add-on for eligible weekends ($100/weekend).',
+          'For physician credit, ESP lists an AMA PRA Category 1 add-on priced at $100 per weekend.'
+        ]
+      },
+      {
+        id: 'contact',
+        patterns: [
+          'contact', 'phone number', 'email support', 'help desk', 'reach esp'
+        ],
+        responses: [
+          'You can reach ESP support at info@esp-inc.com for registration, transfers, refund requests, and general help.',
+          'Best contact is info@esp-inc.com for support, scheduling, and registration issues.',
+          'For direct help, email info@esp-inc.com.'
+        ]
+      },
+      {
+        id: 'live_agent',
+        patterns: [
+          'live agent', 'human', 'real person', 'talk to someone', 'support person',
+          'customer service', 'representative'
+        ],
+        responses: [
+          'Absolutely - I can connect you with a live agent. Tap "Talk to a Live Agent" below, or email info@esp-inc.com.',
+          'Yes - if you prefer a human, use the "Talk to a Live Agent" button in this chat and we will route you to support.',
+          'You can speak with a live agent by clicking the "Talk to a Live Agent" option below.'
+        ]
+      }
+    ];
+
+    const SUPPORT_CASES = [
+      {
+        id: 'workbook_separate_purchase',
+        patterns: [
+          'purchase workbook separately', 'buy workbook separately', 'can i buy just the workbook',
+          'workbook only', 'without webinar workbook', 'buy workbook alone'
+        ],
+        responses: [
+          'Workbook-only purchases may be available if stock remains (typically prior-year versions). The price is the same as full course registration.'
+        ]
+      },
+      {
+        id: 'pending_purchase_declined',
+        patterns: [
+          'purchase pending', 'charged twice', 'ordered twice', 'double charge',
+          'no email confirmation', 'transaction pending', 'ip shipping mismatch', 'declined payment'
+        ],
+        responses: [
+          'If an order shows pending/duplicate with no confirmation email, it is often a declined transaction. One known cause is IP-to-shipping mismatch (for example, non-US IP with US shipping). Retry from a matching location/network and contact ESP at info@esp-inc.com so they can confirm only one successful order.'
+        ]
+      },
+      {
+        id: 'cme_certificate_missing',
+        patterns: [
+          'did not get cme', 'no cme certificate', 'sdms does not see credits', 'need cme copy',
+          'certificate not showing', 'where is my cme certificate', 'where is my certificate',
+          'how do i find my cme certificate'
+        ],
+        responses: [
+          'CME certificates are hosted in SDMS and instructions are sent in the weeks after the webinar (typically around 2 weeks). Sign in with the webinar email, go to Learning tab > My SDMS Tracker > Go to Your Learning Center > Completed to download/print. For email updates, contact SDMS at learning@sdms.org or 214-473-8057.'
+        ]
+      },
+      {
+        id: 'workbook_early_shipping',
+        patterns: [
+          'ship workbook early', 'early workbook', 'can i get workbook sooner', 'head start with workbook',
+          'workbook printing process'
+        ],
+        responses: [
+          'ESP ships in registration order once the current edition is printed and ready. Tracking is sent to your ESP account email from Stamps.com. If you do not see it, check spam/junk.'
+        ]
+      },
+      {
+        id: 'webinar_virtual_and_echo_guidance',
+        patterns: [
+          'is it virtual', 'in person or webinar', 'do i need to show up', 'cci exam echo course',
+          'which echo course for cci'
+        ],
+        responses: [
+          'ESP seminars are webinars (virtual), so no in-person attendance is required. For CCI RCS prep, students usually take Adult Echocardiography, and many pair it with SPI to match exam outline coverage.'
+        ]
+      },
+      {
+        id: 'xzone_extension',
+        patterns: [
+          'x-zone extension', 'extend xzone', 'extend course access', 'need extension until exam',
+          'upcoming exam date extension', 'xzone extension', 'x zone extension', 'can i get an xzone extension'
+        ],
+        responses: [
+          'ESP can provide a complimentary one-time extension (up to 6 weeks) with proof of an upcoming scheduled exam. Send exam confirmation showing your name, course, and exam date.'
+        ]
+      },
+      {
+        id: 'webinar_join_instructions',
+        patterns: [
+          'join webinar', 'zoom link', 'meeting id', 'where do i click join', 'dashboard join button',
+          'log on to webinar', 'log in to webinar', 'login to webinar', 'sign in to webinar'
+        ],
+        responses: [
+          'Log in to your ESP account and open your dashboard. Under Webinars, find your upcoming session (the webinar block for your course) — you should see a Join option that opens Zoom in your browser or app. About 30 minutes before start, the Join button typically turns green. ESP also emails information about the webinar and how to join a few days before the event.'
+        ]
+      }
+    ];
+
+    const STOP_WORDS = new Set([
+      'a', 'an', 'the', 'is', 'are', 'i', 'you', 'me', 'my', 'to', 'for', 'of', 'on', 'in',
+      'and', 'or', 'it', 'this', 'that', 'with', 'can', 'do', 'does', 'be', 'about', 'when',
+      'what', 'how', 'where', 'why'
+    ]);
+
+    const CONTACT_OR_LIVE_AGENT =
+      "I do not have a confident answer for that. Please use Talk to a Live Agent below, or email info@esp-inc.com, and the ESP team can help.";
+
+    const FALLBACK_ANSWER = CONTACT_OR_LIVE_AGENT;
+    let isLoading = false;
+    let isChatOpen = false;
+    const responseCursorByIntent = {};
+    const conversationState = {
+      lastIntent: null,
+      lastCourse: null,
+      lastAskedNextWebinar: false,
+      lastTopic: null,
+      lastActionTarget: null,
+      pendingClarification: null
+    };
+    const XZONE_PRICING = {
+      '1': '$39',
+      '5': '$79',
+      '15': '$109'
+    };
+    const MONTH_ORDER = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const MONTH_LABEL = {
+      jan: 'Jan 23-25',
+      feb: 'Feb 21-22',
+      mar: 'Mar 20-22',
+      apr: 'Apr 11-12',
+      may: 'May 15-17',
+      jun: 'Jun 20-21',
+      jul: 'Jul 11-12',
+      aug: 'Aug 14-16',
+      sep: 'Sep 12-13',
+      oct: 'Oct 23-25',
+      nov: 'Nov 21-22',
+      dec: 'Dec 12-13'
+    };
+    const MONTH_TO_INDEX = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+    };
+    const COURSE_ALIASES = {
+      spi: ['spi', 'physics', 'ultrasound physics'],
+      ab: ['ab', 'abdomen', 'abdominal', 'abdominal sonography'],
+      ae: ['ae', 'adult echo', 'adult echocardiography', 'echo'],
+      ob: ['ob', 'obgyn', 'ob gyn', 'ob/gyn', 'ob gyn sonography'],
+      vt: ['vt', 'vascular', 'vascular technology'],
+      br: ['br', 'breast', 'breast sonography'],
+      pe: ['pe', 'pediatric echo', 'pediatric echocardiography'],
+      fe: ['fe', 'fetal echo', 'fetal echocardiography'],
+      ps: ['ps', 'pediatric', 'pediatric sonography'],
+      msk: ['msk', 'musculoskeletal', 'musculoskeletal sonography']
+    };
+    const COURSE_NAMES = {
+      spi: 'SPI (Ultrasound Physics)',
+      ab: 'AB (Abdominal Sonography)',
+      ae: 'AE (Adult Echocardiography)',
+      ob: 'OB (OB/GYN Sonography)',
+      vt: 'VT (Vascular Technology)',
+      br: 'BR (Breast Sonography)',
+      pe: 'PE (Pediatric Echocardiography)',
+      fe: 'FE (Fetal Echocardiography)',
+      ps: 'PS (Pediatric Sonography)',
+      msk: 'MSK (Musculoskeletal Sonography)'
+    };
+    /** Per esp-inc.com/webinar-schedule — core $325, specialty $375, MD-led MSK $450 */
+    const WEBINAR_PRICE_BY_COURSE = {
+      spi: 325,
+      ab: 325,
+      ae: 325,
+      ob: 325,
+      vt: 325,
+      br: 375,
+      fe: 375,
+      pe: 375,
+      ps: 375,
+      msk: 450
+    };
+    const SCHEDULE_BY_MONTH = {
+      jan: { spi: '8a - 12p', ab: '1p - 5p', ae: '1p - 5p', ob: '1p - 5p', vt: '1p - 5p', fe: '8a - 12p' },
+      feb: { spi: '8a - 3p', ab: '8a - 3p', ae: '8a - 3p', ob: '8a - 3p', vt: '8a - 3p', fe: '8a - 3p', ps: '8a - 3p' },
+      mar: { spi: '8a - 12p', ab: '1p - 5p', ae: '1p - 5p', ob: '1p - 5p', vt: '1p - 5p', br: '1p - 5p', pe: '8a - 12p' },
+      apr: { spi: '8a - 3p', ab: '8a - 3p', ae: '8a - 3p', ob: '8a - 3p', vt: '8a - 3p', br: '8a - 3p', msk: '8a - 3p' },
+      may: { spi: '8a - 12p', ab: '1p - 5p', ae: '1p - 5p', ob: '1p - 5p', vt: '1p - 5p', br: '1p - 5p', pe: '8a - 12p', fe: '8a - 12p', ps: '8a - 12p' },
+      jun: { spi: '8a - 3p', ab: '8a - 3p', ae: '8a - 3p', ob: '8a - 3p', vt: '8a - 3p', pe: '8a - 3p' },
+      jul: { spi: '8a - 3p', ab: '8a - 3p', ae: '8a - 3p', ob: '8a - 3p', vt: '8a - 3p' },
+      aug: { spi: '8a - 12p', ab: '1p - 5p', ae: '1p - 5p', ob: '1p - 5p', vt: '1p - 5p', pe: '8a - 12p', fe: '8a - 12p', ps: '8a - 12p' },
+      sep: { spi: '8a - 3p', ab: '8a - 3p', ae: '8a - 3p', ob: '8a - 3p', vt: '8a - 3p', br: '8a - 3p' },
+      oct: { spi: '8a - 12p', ab: '1p - 5p', ae: '1p - 5p', ob: '1p - 5p', vt: '1p - 5p', br: '1p - 5p', pe: '8a - 12p', msk: '8a - 12p' },
+      nov: { spi: '8a - 3p', ab: '8a - 3p', ae: '8a - 3p', ob: '8a - 3p', vt: '8a - 3p', br: '8a - 3p', ps: '8a - 3p' },
+      dec: { spi: '8a - 3p', ab: '8a - 3p', ae: '8a - 3p', ob: '8a - 3p', vt: '8a - 3p' }
+    };
+
+    function autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    function sendSuggestion(btn) {
+      document.getElementById('userInput').value = btn.textContent;
+      document.getElementById('suggestions').style.display = 'none';
+      sendMessage();
+    }
+
+    function appendMessage(role, text, options = {}) {
+      const box = document.getElementById('chatBox');
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      const iconHtml = role === 'bot'
+        ? `<img src="${BOT_AVATAR}" alt="ESP logo">`
+        : '👤';
+      const clarifyHtml =
+        role === 'bot' && Array.isArray(options.clarifyOptions) && options.clarifyOptions.length > 0
+          ? `<div class="bot-actions">${options.clarifyOptions
+            .map((opt) => `<button class="inline-action-btn" onclick="chooseClarification('${opt.id}')">${opt.label}</button>`)
+            .join('')}</div>`
+          : '';
+      const actionHtml =
+        role === 'bot' && options.showLiveAgent
+          ? `<div class="bot-actions"><button class="inline-action-btn" onclick="talkToLiveAgent()">Talk to a Live Agent</button></div>`
+          : '';
+      div.innerHTML = `
+        <div class="icon">${iconHtml}</div>
+        <div class="bubble">${text.replace(/\n/g, '<br>')}${clarifyHtml}${actionHtml}</div>
+      `;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+      return div;
+    }
+
+    function showTyping() {
+      const box = document.getElementById('chatBox');
+      const div = document.createElement('div');
+      div.className = 'message bot typing';
+      div.id = 'typingIndicator';
+      div.innerHTML = `
+        <div class="icon"><img src="${BOT_AVATAR}" alt="ESP logo"></div>
+        <div class="bubble">
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+      `;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function removeTyping() {
+      const el = document.getElementById('typingIndicator');
+      if (el) el.remove();
+    }
+
+    function initializeBotAvatars() {
+      const headerAvatar = document.getElementById('botAvatarHeader');
+      const welcomeAvatar = document.getElementById('botAvatarWelcome');
+      if (headerAvatar) headerAvatar.src = BOT_AVATAR;
+      if (welcomeAvatar) welcomeAvatar.src = BOT_AVATAR;
+    }
+
+    function toggleChat() {
+      const widget = document.getElementById('chatWidget');
+      const launcher = document.getElementById('chatLauncher');
+      const input = document.getElementById('userInput');
+
+      isChatOpen = !isChatOpen;
+      widget.classList.toggle('closed', !isChatOpen);
+      launcher.classList.toggle('open', isChatOpen);
+      launcher.textContent = isChatOpen ? '✕' : '💬';
+      launcher.setAttribute('aria-label', isChatOpen ? 'Close chat' : 'Open chat');
+
+      if (isChatOpen) {
+        setTimeout(() => input.focus(), 120);
+      } else {
+        // Reset short-term memory when chat is closed.
+        conversationState.lastIntent = null;
+        conversationState.lastCourse = null;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastTopic = null;
+        conversationState.lastActionTarget = null;
+        conversationState.pendingClarification = null;
+      }
+    }
+
+    function talkToLiveAgent() {
+      const subject = encodeURIComponent('ESP Support Request from Chatbot');
+      const body = encodeURIComponent(
+        'Hi ESP team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0AThanks!'
+      );
+      window.location.href = `mailto:info@esp-inc.com?subject=${subject}&body=${body}`;
+    }
+
+    function chooseClarification(optionId) {
+      if (!optionId) return;
+      const map = {
+        schedule: 'webinar schedule and dates',
+        cmes: 'cme certificates and credits',
+        workbook: 'workbook shipping or purchase',
+        xzone: 'x-zone access and pricing',
+        tools: 'digital quiz cards and study tools',
+        pricing: 'course pricing and costs',
+        refunds: 'refund and transfer policy'
+      };
+      const text = map[optionId] || optionId;
+      const input = document.getElementById('userInput');
+      input.value = text;
+      sendMessage();
+    }
+
+    function normalizeText(text) {
+      return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\bwhens\b/g, 'when')
+        .replace(/\bwhats\b/g, 'what')
+        .replace(/\bwheres\b/g, 'where')
+        .replace(/\bquiz cares\b/g, 'quiz cards')
+        .trim();
+    }
+
+    /**
+     * Collapse “r e fund” / “c a r d s” style spacing so intent handlers still match.
+     * Only a small whitelist — not open-ended spelling correction.
+     */
+    function collapseSpacedTypos(normalized) {
+      if (!normalized) return normalized;
+      let t = normalized;
+      t = t.replace(/\br\s+e\s+fund\b/g, 'refund');
+      t = t.replace(/\br\s+e\s+f\s+u\s+n\s+d\b/g, 'refund');
+      t = t.replace(/\bref\s+u\s+n\s*d\b/g, 'refund');
+      t = t.replace(/\bref\s+u\s+nd\b/g, 'refund');
+      t = t.replace(/\bc\s+a\s+r\s+d\s+s\b/g, 'cards');
+      t = t.replace(/\bc\s+a\s+r\s+e\s*s\b/g, 'cards');
+      t = t.replace(/\bca\s+res\b/g, 'cards');
+      return t.replace(/\s+/g, ' ').trim();
+    }
+
+    /** True when the message looks like letters split by spaces (easy to mis-route in KB). */
+    function seemsFragmentaryLetterSpacing(normalized) {
+      const tokens = normalized.split(' ').filter(Boolean);
+      if (tokens.length < 5) return false;
+      const singleLetter = tokens.filter(
+        (tok) => tok.length === 1 && /[a-z]/.test(tok) && tok !== 'a' && tok !== 'i'
+      ).length;
+      return singleLetter >= 2;
+    }
+
+    /**
+     * Map common paraphrases of the *same question intent* to wording the rules already match.
+     * Not fuzzy word similarity — explicit phrase equivalences only.
+     */
+    function applyRelatedQuestionParaphrases(normalized) {
+      if (!normalized) return normalized;
+      let t = normalized;
+      const hasWebinar = /\bwebinar\b/.test(t);
+      const hasZoom = /\bzoom\b/.test(t);
+
+      if (hasWebinar) {
+        t = t.replace(/\bhow do i attend (a |the )?webinar\b/g, 'how do i join webinar');
+        t = t.replace(/\bhow can i attend (a |the )?webinar\b/g, 'how can i join webinar');
+        t = t.replace(/\bhow do i watch (the )?webinar\b/g, 'how do i join webinar');
+        t = t.replace(/\bhow can i watch (the )?webinar\b/g, 'how can i join webinar');
+        t = t.replace(/\baccess the live (class|session)\b/g, 'join webinar');
+        t = t.replace(/\bget into (the )?live session\b/g, 'join webinar');
+        t = t.replace(/\bwhen can i take (a |the )?webinar\b/g, 'when is the next webinar');
+        t = t.replace(/\bwhen can i take (a |the )?course\b/g, 'when is the next webinar');
+        t = t.replace(/\bwhat date is (the )?webinar\b/g, 'when is the next webinar');
+        t = t.replace(/\bwhat day is (the )?webinar\b/g, 'when is the next webinar');
+      }
+
+      if (hasWebinar || hasZoom) {
+        t = t.replace(/\bhow do i get (the )?zoom link\b/g, 'how do i join webinar zoom');
+        t = t.replace(/\bhow can i get (the )?zoom link\b/g, 'how can i join webinar zoom');
+        t = t.replace(/\bwhere is (the )?zoom link\b/g, 'where do i join webinar zoom');
+      }
+
+      t = t.replace(/\bwhen is the next class\b/g, 'when is the next webinar');
+      t = t.replace(/\bwhen is the next course\b/g, 'when is the next webinar');
+      t = t.replace(/\bwhen is the next session\b/g, 'when is the next webinar');
+      t = t.replace(/\bsoonest (class|course|session)\b/g, 'next webinar');
+      t = t.replace(/\bearliest (date|class)\b/g, 'next webinar');
+
+      t = t.replace(/\bhow do i get my money back\b/g, 'refund');
+      t = t.replace(/\bcan i get my money back\b/g, 'refund');
+      t = t.replace(/\bi want (a |my )?refund\b/g, 'refund');
+      t = t.replace(/\bi need (a |my )?refund\b/g, 'refund');
+
+      t = t.replace(/\bdigital case study\b/g, 'digital case studies');
+      t = t.replace(/\bdigital cases\b/g, 'digital case studies');
+      t = t.replace(/\bvideo case study\b/g, 'video case studies');
+      t = t.replace(/\bvideo cases product\b/g, 'video case studies');
+
+      t = t.replace(/\btell me about (the )?x zone\b/g, 'what is x zone');
+      t = t.replace(/\btell me about xzone\b/g, 'what is x zone');
+      t = t.replace(/\bexplain (the )?x zone\b/g, 'what is x zone');
+      t = t.replace(/\bexplain xzone\b/g, 'what is x zone');
+      t = t.replace(/\bwhat s xzone\b/g, 'what is xzone');
+      t = t.replace(/\bwhat s x zone\b/g, 'what is x zone');
+
+      t = t.replace(/\bhow much (are|for) (the )?books\b/g, 'how much are textbooks');
+      t = t.replace(/\bprice of (the )?books\b/g, 'how much are textbooks');
+      t = t.replace(/\bprice of (the )?textbooks\b/g, 'how much are textbooks');
+      t = t.replace(/\bcost of (the )?books\b/g, 'how much are textbooks');
+
+      t = t.replace(/\bwhere do i find my cme\b/g, 'how do i get my cmes after the webinar');
+      t = t.replace(/\bwhere are my cme\b/g, 'how do i get my cmes after the webinar');
+      t = t.replace(/\bwhere do i get my cme certificate\b/g, 'certificate sdms');
+      t = t.replace(/\bhow do i download (my )?certificate\b/g, 'certificate sdms');
+
+      t = t.replace(/\bschool alliance\b/g, 'alliance program');
+      t = t.replace(/\balliance membership\b/g, 'alliance program');
+      t = t.replace(/\bhow does the alliance program work\b/g, 'alliance program');
+      t = t.replace(/\bwhat is the alliance\b/g, 'alliance program');
+
+      return t.replace(/\s+/g, ' ').trim();
+    }
+
+    function tokenize(text) {
+      return normalizeText(text)
+        .split(' ')
+        .filter((token) => token && !STOP_WORDS.has(token));
+    }
+
+    /** Tokenize an already-normalized + paraphrased string (keeps routing and tokens aligned). */
+    function tokenizeFromNormalized(normalized) {
+      return normalized
+        .split(' ')
+        .filter((token) => token && !STOP_WORDS.has(token));
+    }
+
+    function seemsGibberish(text) {
+      const normalized = normalizeText(text);
+      if (!normalized) return true;
+      if (normalized.length <= 2) return false;
+      const compact = normalized.replace(/\s/g, '');
+      // Short inputs like "for msk" look low-vowel but are valid follow-ups.
+      if (compact.length <= 14) return false;
+      const vowels = normalized.match(/[aeiou]/g) || [];
+      const vowelRatio = vowels.length / compact.length;
+      return vowelRatio < 0.18 && compact.length > 6;
+    }
+
+    function scorePattern(userNormalized, userTokens, pattern) {
+      const patternNormalized = normalizeText(pattern);
+      const patternTokens = tokenize(pattern);
+
+      let score = 0;
+
+      if (userNormalized.includes(patternNormalized)) score += 5;
+
+      for (const token of patternTokens) {
+        if (userTokens.includes(token)) score += 1.2;
+      }
+
+      const overlap = patternTokens.filter((t) => userTokens.includes(t)).length;
+      if (patternTokens.length > 0) {
+        score += (overlap / patternTokens.length) * 2.4;
+      }
+
+      return score;
+    }
+
+    /** 1 / 5 / 15-day X-ZONE subscription tier from user text (null if unclear). */
+    function getXzoneSubscriptionTierFromMessage(userNormalized) {
+      if (/\b15\s*day\b/.test(userNormalized) || /\bfifteen day\b/.test(userNormalized)) return '15';
+      if (/\b5\s*day\b/.test(userNormalized) || /\bfive day\b/.test(userNormalized)) return '5';
+      if (/\b1\s*day\b/.test(userNormalized) || /\bone day\b/.test(userNormalized)) return '1';
+      return null;
+    }
+
+    function getSpecificPriceReply(userNormalized) {
+      const mentionsXzone =
+        userNormalized.includes('xzone') ||
+        userNormalized.includes('xzones') ||
+        userNormalized.includes('x zone');
+      if (!mentionsXzone) return null;
+
+      const asksPrice =
+        userNormalized.includes('how much') ||
+        userNormalized.includes('price') ||
+        userNormalized.includes('pricing') ||
+        userNormalized.includes('cost');
+
+      const tier = getXzoneSubscriptionTierFromMessage(userNormalized);
+      if (tier === '15') return `The 15-day X-ZONE access price is ${XZONE_PRICING['15']}.`;
+      if (tier === '5') return `The 5-day X-ZONE access price is ${XZONE_PRICING['5']}.`;
+      if (tier === '1') return `The 1-day X-ZONE access price is ${XZONE_PRICING['1']}.`;
+
+      if (!asksPrice) return null;
+
+      return `X-ZONE standalone pricing is ${XZONE_PRICING['1']} (1-day), ${XZONE_PRICING['5']} (5-day), and ${XZONE_PRICING['15']} (15-day).`;
+    }
+
+    /**
+     * After X-ZONE topic: tier-specific price ("5 day", "what about 5 day", "5 day xzone") or generic table only when no tier.
+     */
+    function getXzoneContextPriceReply(userNormalized, state) {
+      const inXzoneContext =
+        state.lastTopic === 'xzone' ||
+        state.lastIntent === 'xzone' ||
+        state.lastTopic === 'xzone_extension';
+      if (!inXzoneContext) return null;
+
+      if (userNormalized.includes('webinar') || userNormalized.includes('course registration')) return null;
+
+      const asksPrice =
+        userNormalized.includes('how much') ||
+        userNormalized.includes('price') ||
+        userNormalized.includes('cost') ||
+        userNormalized.includes('pricing');
+
+      const asksAboutDayFollowup =
+        (userNormalized.includes('what about') || userNormalized.includes('how about')) &&
+        userNormalized.includes('day');
+
+      const mentionsXzone =
+        userNormalized.includes('xzone') || userNormalized.includes('x zone');
+
+      const tier = getXzoneSubscriptionTierFromMessage(userNormalized);
+
+      if (tier === '15') return `The 15-day X-ZONE access price is ${XZONE_PRICING['15']}.`;
+      if (tier === '5') return `The 5-day X-ZONE access price is ${XZONE_PRICING['5']}.`;
+      if (tier === '1') return `The 1-day X-ZONE access price is ${XZONE_PRICING['1']}.`;
+
+      if (mentionsXzone && (asksPrice || asksAboutDayFollowup)) {
+        return `X-ZONE standalone pricing is ${XZONE_PRICING['1']} (1-day), ${XZONE_PRICING['5']} (5-day), and ${XZONE_PRICING['15']} (15-day). Webinar registration includes 6 weeks of X-ZONE access.`;
+      }
+
+      if (asksPrice) return null;
+
+      return null;
+    }
+
+    function looksLikeSpacedRefundIntent(s) {
+      const x = s.replace(/\s+/g, ' ');
+      return (
+        /\b(r\s+)+e\s+f(u\s*n\s*d|und)\b/i.test(x) ||
+        /\bref\s*u\s*n\s*d\b/i.test(x) ||
+        /\bref\s*u\s+nd\b/i.test(x)
+      );
+    }
+
+    function getRefundTransferPriorityReply(userNormalized) {
+      const asksRefund =
+        userNormalized.includes('refund') ||
+        userNormalized.includes('efund') ||
+        userNormalized.includes('re fund') ||
+        looksLikeSpacedRefundIntent(userNormalized) ||
+        userNormalized.includes('money back') ||
+        userNormalized.includes('cancel registration') ||
+        userNormalized.includes('transfer course') ||
+        userNormalized.includes('refund policy') ||
+        (userNormalized.includes('transfer') && userNormalized.includes('registration')) ||
+        (userNormalized.includes('reschedule') &&
+          (userNormalized.includes('registration') || userNormalized.includes('my course')));
+      if (!asksRefund) return null;
+      return {
+        text: 'Refund eligibility for the webinar depends on two things: workbook not shipped and X-ZONE not activated. Otherwise refunds are not available. Refunds for the textbooks are based on our policy you can find through emailing info@esp-inc.com',
+        topic: 'refund_transfer'
+      };
+    }
+
+    function getAllianceProgramReply(userNormalized) {
+      if (
+        !userNormalized.includes('alliance') &&
+        !userNormalized.includes('academic alliance') &&
+        !userNormalized.includes('alliance program')
+      ) {
+        return null;
+      }
+      return {
+        text:
+          'What is the Alliance Program? The Alliance Program is for schools looking to get exclusive teacher and student resources. Each year of paid membership: complimentary attendance to one webinar; $100 off one additional webinar registration; current students $50 off one webinar registration; a copy of Understanding Ultrasound Physics (4th edition); and permission to access a PowerPoint file of all images in the textbook. Email info@esp-inc.com to enroll or learn more.',
+        topic: 'alliance_program'
+      };
+    }
+
+    function getPurchaseOrderReply(userNormalized) {
+      if (
+        (userNormalized.includes('cancel') || userNormalized.includes('change') || userNormalized.includes('modify')) &&
+        userNormalized.includes('order')
+      ) {
+        return null;
+      }
+
+      const mentionsBulkTextbook =
+        userNormalized.includes('bulk') &&
+        (userNormalized.includes('textbook') || userNormalized.includes('book'));
+      if (mentionsBulkTextbook) return null;
+
+      const asksPlaceOrder =
+        userNormalized.includes('place an order') ||
+        userNormalized.includes('place a order') ||
+        userNormalized.includes('place order') ||
+        userNormalized.includes('make an order') ||
+        userNormalized.includes('making an order') ||
+        userNormalized.includes('how do i order') ||
+        userNormalized.includes('how can i order') ||
+        userNormalized.includes('how to order') ||
+        (userNormalized.includes('can i') && userNormalized.includes('order') && !userNormalized.includes('refund')) ||
+        (userNormalized.includes('can i') && userNormalized.includes('purchase') && !userNormalized.includes('workbook only'));
+      if (!asksPlaceOrder) return null;
+
+      return {
+        text:
+          'You can place orders on the ESP website (esp-inc.com): register for webinars under the webinar schedule, or buy study tools (X-ZONE, quiz cards, textbooks, etc.) from Study Tools. If checkout fails or you need help completing a purchase, email info@esp-inc.com and the team can assist.',
+        topic: 'purchase_help'
+      };
+    }
+
+    /**
+     * Bare "how much?" / "cost?" follow-ups: use last topic, or ask for clarification (avoid wrong product pricing).
+     */
+    function getContextualShortPriceReply(userNormalized, state) {
+      const wordCount = userNormalized.split(/\s+/).filter(Boolean).length;
+      const asksPrice =
+        userNormalized.includes('how much') ||
+        userNormalized.includes('cost') ||
+        userNormalized.includes('price') ||
+        userNormalized.includes('pricing');
+      if (!asksPrice || wordCount > 8) return null;
+
+      const mentionsProduct =
+        userNormalized.includes('textbook') ||
+        userNormalized.includes('textbooks') ||
+        userNormalized.includes('webinar') ||
+        userNormalized.includes('xzone') ||
+        userNormalized.includes('x zone') ||
+        userNormalized.includes('quiz card') ||
+        userNormalized.includes('brainscape') ||
+        userNormalized.includes('video case');
+      if (mentionsProduct) return null;
+
+      const rawTopic = state.lastTopic || state.lastIntent;
+      const lt = rawTopic === 'clarify_price' ? null : rawTopic;
+      const textbookBlurb =
+        'Understanding Ultrasound Physics (4th Edition) is $129. The Art of Vascular Ultrasound is $175. Bulk textbook orders: 5–10 books 5% off; 11–20 books 15% off; 21+ books 25% off.';
+      const webinarBlurb =
+        'Webinar pricing: Core courses $325, Specialty courses $375, and MSK MD-led course $450. Bundle pricing can save $50 per course when registering for both AM and PM courses in the same 3-day session.';
+
+      if (lt === 'textbooks') {
+        return { text: textbookBlurb, topic: 'textbooks' };
+      }
+      if (lt === 'xzone' || lt === 'xzone_extension') {
+        return {
+          text: 'X-ZONE standalone pricing is $39 (1-day), $79 (5-day), and $109 (15-day). Webinar registration includes 6 weeks of X-ZONE access.',
+          topic: 'xzone'
+        };
+      }
+      if (lt === 'quiz_cards') {
+        return { text: 'Digital Quiz Cards are $59 per course for 90-day access.', topic: 'quiz_cards' };
+      }
+      if (lt === 'video_cases') {
+        return {
+          text: 'Adult Echo Video Case Studies are $159 for the first year, then $11.99 annual renewal.',
+          topic: 'video_cases'
+        };
+      }
+      if (
+        lt === 'registration_includes' ||
+        lt === 'webinar_explainer' ||
+        lt === 'pricing' ||
+        lt === 'schedule' ||
+        lt === 'next_webinar' ||
+        lt === 'webinar_pricing' ||
+        lt === 'webinar_duration' ||
+        lt === 'webinar_join_instructions'
+      ) {
+        return { text: webinarBlurb, topic: 'pricing' };
+      }
+
+      if (wordCount <= 4 && !lt) {
+        return {
+          text:
+            'I am not sure which price you mean—webinar courses ($325–$450), textbooks ($129–$175), or X-ZONE ($39–$109 standalone)? Ask with a bit more detail (for example “How much is the webinar?” or “How much are the textbooks?”) and I will answer.',
+          topic: 'clarify_price'
+        };
+      }
+      return null;
+    }
+
+    function getPriorityPolicyReply(userNormalized) {
+      const asksXzoneExtension =
+        (userNormalized.includes('xzone') || userNormalized.includes('x zone')) &&
+        userNormalized.includes('extension');
+      if (asksXzoneExtension) {
+        return {
+          text: 'Yes. ESP can provide a complimentary one-time extension of up to 6 weeks with confirmation of an upcoming exam appointment. Send your confirmation with your name, course, and exam date, and support can extend access through your exam date.',
+          topic: 'xzone_extension',
+          actionTarget: 'info@esp-inc.com'
+        };
+      }
+
+      const asksCmeCertificate =
+        (userNormalized.includes('cme') ||
+          userNormalized.includes('cmes') ||
+          userNormalized.includes('certificate') ||
+          userNormalized.includes('sdms')) &&
+        (userNormalized.includes('where') ||
+          userNormalized.includes('find') ||
+          userNormalized.includes('receive') ||
+          userNormalized.includes('copy') ||
+          userNormalized.includes('not') ||
+          (userNormalized.includes('get') && userNormalized.includes('my')) ||
+          (userNormalized.includes('credit') &&
+            (userNormalized.includes('get') || userNormalized.includes('receive') || userNormalized.includes('my'))) ||
+          userNormalized.includes('havent') ||
+          userNormalized.includes('haven t') ||
+          userNormalized.includes('have not') ||
+          (userNormalized.includes('gotten') && userNormalized.includes('my')));
+      if (asksCmeCertificate) {
+        return {
+          text: 'CME certificates are on SDMS and are typically available about 2 weeks after the webinar. Log in with your webinar email, then go to Learning tab > My SDMS Tracker > Go to Your Learning Center > Completed to view/download. For email updates, contact SDMS at learning@sdms.org or 214-473-8057.',
+          topic: 'cme_certificate_missing',
+          actionTarget: 'learning@sdms.org'
+        };
+      }
+
+      const asksWorkbookSeparate =
+        userNormalized.includes('workbook') &&
+        (userNormalized.includes('separately') || userNormalized.includes('alone') || userNormalized.includes('only'));
+      if (asksWorkbookSeparate) {
+        return {
+          text: 'Workbook-only purchase may be possible if stock is available (usually prior-year version), and pricing is the same as full course registration.',
+          topic: 'workbook_separate_purchase',
+          actionTarget: 'info@esp-inc.com'
+        };
+      }
+
+      const asksWorkbookArrival =
+        userNormalized.includes('workbook') &&
+        (userNormalized.includes('when') || userNormalized.includes('arrive') || userNormalized.includes('receive') || userNormalized.includes('ship'));
+      if (asksWorkbookArrival) {
+        return {
+          text: 'Workbooks typically arrive 1-2 weeks before the webinar and are shipped in registration order. Tracking is emailed when shipped.',
+          topic: 'workbook_shipping',
+          actionTarget: null
+        };
+      }
+
+      const asksWorkbookEarly =
+        (userNormalized.includes('workbook') && userNormalized.includes('early')) ||
+        userNormalized.includes('get it early') ||
+        userNormalized.includes('mail it early') ||
+        userNormalized.includes('ship it early');
+      if (asksWorkbookEarly) {
+        return {
+          text: 'We can try our best to mail it early based on available workbook stock (often from prior webinar inventory), but it is not guaranteed. Please email info@esp-inc.com and the team can check availability for you.',
+          topic: 'workbook_early_shipping',
+          actionTarget: 'info@esp-inc.com'
+        };
+      }
+
+      return null;
+    }
+
+    function getCmeContextReply(userNormalized) {
+      const mentionsCme =
+        userNormalized.includes('cme') ||
+        userNormalized.includes('cmes') ||
+        userNormalized.includes('continuing education');
+      if (!mentionsCme) return null;
+
+      const cmeSdmsCertificateBlurb =
+        'Within about two weeks after the seminar, ESP verifies attendance and sends the roster to SDMS. You will receive an email from SDMS when your certificate is ready. You do not need to be an SDMS member: create a free SDMS account at the SDMS log-in page, click “Don’t have an account?”, and use the same email ESP has on file so your certificate links to you. SDMS members can also access credits through their SDMS Learning tracker. If you cannot locate your certificate after creating your account, email info@esp-inc.com. Did not receive the SDMS email? Check spam/junk and any alternate email accounts you may have used—SDMS sends the message directly.';
+
+      const cmeShortSdmsHowto =
+        'CME certificates are on SDMS and are typically available about 2 weeks after the webinar. Log in with your webinar email, then go to Learning tab > My SDMS Tracker > Go to Your Learning Center > Completed to view/download. For email updates, contact SDMS at learning@sdms.org or 214-473-8057.';
+
+      const asksLiveWebinarCmeAfter =
+        mentionsCme &&
+        userNormalized.includes('after') &&
+        (userNormalized.includes('webinar') || userNormalized.includes('seminar')) &&
+        !userNormalized.includes('how many') &&
+        !userNormalized.includes('on demand') &&
+        !userNormalized.includes('on-demand');
+      if (asksLiveWebinarCmeAfter) {
+        return {
+          text: cmeSdmsCertificateBlurb,
+          topic: 'cme_certificate_missing'
+        };
+      }
+
+      const asksHaventReceivedCme =
+        mentionsCme &&
+        (userNormalized.includes('havent') ||
+          userNormalized.includes('haven t') ||
+          userNormalized.includes('have not') ||
+          userNormalized.includes('didnt get') ||
+          userNormalized.includes('did not get') ||
+          userNormalized.includes('not gotten')) &&
+        (userNormalized.includes('gotten') ||
+          userNormalized.includes('received') ||
+          userNormalized.includes('yet') ||
+          (userNormalized.includes('get') && userNormalized.includes('my')));
+      if (asksHaventReceivedCme) {
+        return {
+          text: cmeSdmsCertificateBlurb,
+          topic: 'cme_certificate_missing'
+        };
+      }
+
+      const asksObtainMyLiveCmeCredits =
+        mentionsCme &&
+        (userNormalized.includes('how do i') ||
+          userNormalized.includes('how can i') ||
+          userNormalized.includes('how to')) &&
+        (userNormalized.includes('get my') ||
+          userNormalized.includes('receive my') ||
+          userNormalized.includes('obtain my') ||
+          userNormalized.includes('download my')) &&
+        (userNormalized.includes('cme') || userNormalized.includes('credit') || userNormalized.includes('credits'));
+      if (asksObtainMyLiveCmeCredits) {
+        return {
+          text: cmeShortSdmsHowto,
+          topic: 'cme_certificate_missing'
+        };
+      }
+
+      const asksWhereMyCme =
+        userNormalized.includes('where') &&
+        (userNormalized.includes('find') || userNormalized.includes('are')) &&
+        userNormalized.includes('my') &&
+        (userNormalized.includes('cme') || userNormalized.includes('cmes') || userNormalized.includes('certificate'));
+      if (asksWhereMyCme) {
+        return {
+          text: cmeSdmsCertificateBlurb,
+          topic: 'cme_certificate_missing'
+        };
+      }
+
+      const asksCmeCount =
+        userNormalized.includes('how many') &&
+        (userNormalized.includes('cme') ||
+          userNormalized.includes('credit') ||
+          userNormalized.includes('credits') ||
+          userNormalized.includes('ceu'));
+      if (asksCmeCount) {
+        return {
+          text:
+            'Each live ESP webinar course is worth 12 SDMS CME/CEU credits when you attend the full session. Attendance is monitored via your ESP dashboard and Zoom log-in/out; partial credit is not awarded. On a 3-day weekend (AM and PM), you can earn up to 24 CMEs if you register for both courses. 2-day weekend sessions only allow registration for one course.',
+          topic: 'cmes'
+        };
+      }
+
+      const asksMissingCmeEmail =
+        (userNormalized.includes('never got') ||
+          userNormalized.includes('did not get') ||
+          userNormalized.includes('didnt get') ||
+          userNormalized.includes('no email')) &&
+        (userNormalized.includes('email') || userNormalized.includes('sdms')) &&
+        (userNormalized.includes('cme') || userNormalized.includes('certificate'));
+      if (asksMissingCmeEmail) {
+        return {
+          text:
+            'The CME notification email comes from SDMS (not ESP). Check spam/junk folders and any other email accounts you may have used. SDMS uses the email address on file for members, which may differ from the email ESP provides on the roster. If you still cannot find it, email info@esp-inc.com.',
+          topic: 'cme_certificate_missing'
+        };
+      }
+
+      const asksHowToGetCme =
+        userNormalized.includes('how can i') ||
+        userNormalized.includes('how do i') ||
+        userNormalized.includes('how to get') ||
+        userNormalized.includes('get cme');
+      const wantsGenericCmePathsIntro =
+        asksHowToGetCme &&
+        !userNormalized.includes('certificate') &&
+        !userNormalized.includes('sdms') &&
+        !(userNormalized.includes('get') && userNormalized.includes('my') && (userNormalized.includes('cme') || userNormalized.includes('credit'))) &&
+        !(userNormalized.includes('after') && (userNormalized.includes('webinar') || userNormalized.includes('seminar')));
+      if (wantsGenericCmePathsIntro) {
+        return {
+          text: 'You can earn CMEs in two main ways: (1) Live ESP webinars — 12 SDMS CME credits per course when you attend the full session. (2) On-Demand CMEs — self-paced courses (often about 1 to 7.5 credits each) with a 90-day window to complete. See esp-inc.com/webinar-schedule and esp-inc.com/on-demand-cmes/.',
+          topic: 'cmes'
+        };
+      }
+
+      const asksOnDemand =
+        userNormalized.includes('on demand') ||
+        userNormalized.includes('on-demand') ||
+        userNormalized.includes('self paced') ||
+        userNormalized.includes('self-paced');
+
+      const asksCertificate =
+        userNormalized.includes('certificate') ||
+        userNormalized.includes('sdms') ||
+        userNormalized.includes('learning center') ||
+        userNormalized.includes('tracker') ||
+        userNormalized.includes('completed tab') ||
+        userNormalized.includes('not showing');
+
+      if (asksCertificate) {
+        return {
+          text: 'CME certificates are hosted on SDMS and are typically available about 2 weeks after the webinar. Sign in with your webinar email, then go to Learning tab > My SDMS Tracker > Go to Your Learning Center > Completed to download/print.',
+          topic: 'cme_certificate_missing'
+        };
+      }
+
+      if (asksOnDemand) {
+        return {
+          text: 'On-Demand CMEs are self-paced courses (usually 1 to 7.5 credits each) with a 90-day completion window. This is separate from live webinar CME credit.',
+          topic: 'cmes'
+        };
+      }
+
+      return {
+        text: 'ESP offers two CME paths: live webinar credit (12 SDMS CMEs per course) and On-Demand CMEs (self-paced, typically 1 to 7.5 credits, 90-day window). If you want, I can help you choose the best option.',
+        topic: 'cmes'
+      };
+    }
+
+    function getSpecificTopicReply(userNormalized) {
+      const bareWhatDoIGet =
+        userNormalized === 'what do i get' ||
+        userNormalized === 'what do i get?' ||
+        userNormalized === 'what will i get' ||
+        userNormalized === 'what will i get?' ||
+        userNormalized === 'what am i getting' ||
+        userNormalized === 'what am i getting?';
+      if (bareWhatDoIGet) {
+        return {
+          text: 'Registration includes a mailed workbook, live interactive webinar access, 6 weeks of X-ZONE practice questions, and 12 SDMS Continuing Education Credits.',
+          topic: 'registration_includes'
+        };
+      }
+
+      const asksDigitalCaseStudies =
+        userNormalized.includes('digital case') ||
+        (userNormalized.includes('digital') && userNormalized.includes('case stud')) ||
+        userNormalized.includes('what are digital case') ||
+        (userNormalized.includes('echo') &&
+          userNormalized.includes('digital') &&
+          (userNormalized.includes('case') || userNormalized.includes('video'))) ||
+        (userNormalized.includes('test and learn') &&
+          (userNormalized.includes('echo') || userNormalized.includes('adult') || userNormalized.includes('video')));
+      if (asksDigitalCaseStudies) {
+        return {
+          text:
+            'Digital case studies and Adult Echo video case studies (Digital Video Case Studies / Test & Learn) are the same product. It is an online visual learning tool with 90+ cardiac pathologies and 190+ clips across 13 categories. Pricing is $159 for the first year, then $11.99 annual renewal.',
+          topic: 'video_cases'
+        };
+      }
+
+      const asksWorkbookExplainer =
+        (userNormalized.includes('workbook') || userNormalized.includes('workbooks')) &&
+        (userNormalized.includes('what are') ||
+          userNormalized.includes('what is') ||
+          userNormalized.includes('tell me about') ||
+          userNormalized.includes('describe') ||
+          userNormalized.includes('purpose') ||
+          userNormalized.includes('companion'));
+      const asksWorkbookLogistics =
+        userNormalized.includes('when') ||
+        userNormalized.includes('ship') ||
+        userNormalized.includes('arrive') ||
+        userNormalized.includes('where') ||
+        userNormalized.includes('tracking') ||
+        userNormalized.includes('separately') ||
+        userNormalized.includes('alone') ||
+        (userNormalized.includes('only') && userNormalized.includes('workbook')) ||
+        userNormalized.includes('early') ||
+        userNormalized.includes('receive') ||
+        userNormalized.includes('mail');
+      if (asksWorkbookExplainer && !asksWorkbookLogistics) {
+        return {
+          text:
+            'The workbooks are designed as companion material to the registry review webinars and are most effective when used as such. In addition to the workbook, webinar registrants receive a 6-week subscription to X-ZONE, our online practice exam questions. These resources, combined with the interactive instruction from our subject experts, ensure you have all the tools to succeed in your exam preparation.',
+          topic: 'workbook_explainer'
+        };
+      }
+
+      const mentionsXzone = userNormalized.includes('xzone') || userNormalized.includes('x zone');
+      const asksXzoneTypes =
+        mentionsXzone &&
+        (userNormalized.includes('type') ||
+          userNormalized.includes('types') ||
+          userNormalized.includes('kind') ||
+          userNormalized.includes('kinds') ||
+          userNormalized.includes('option') ||
+          userNormalized.includes('options') ||
+          userNormalized.includes('length') ||
+          userNormalized.includes('subscription') ||
+          userNormalized.includes('tiers'));
+      if (asksXzoneTypes) {
+        return {
+          text: 'X-ZONE access types: standalone subscriptions are 1-day ($39), 5-day ($79), and 15-day ($109). Webinar registration also includes 6 weeks of X-ZONE access (activate within 9 months).',
+          topic: 'xzone'
+        };
+      }
+
+      const asksVideoCasesProduct =
+        userNormalized.includes('video case studies') ||
+        userNormalized.includes('video cases') ||
+        userNormalized.includes('adult echo test and learn') ||
+        (userNormalized.includes('video') && userNormalized.includes('case'));
+      const asksWebinarScheduleQuestion =
+        userNormalized.includes('webinar') &&
+        (userNormalized.includes('when') || userNormalized.includes('next') || userNormalized.includes('upcoming')) &&
+        !userNormalized.includes('video case') &&
+        !userNormalized.includes('case stud');
+      const asksVideoCases = asksVideoCasesProduct && !asksWebinarScheduleQuestion;
+      if (asksVideoCases) {
+        return {
+          text: 'ESP Adult Echo Video Case Studies are a 100% online visual learning tool with 90+ cardiac pathologies and 190+ clips across 13 categories. Pricing is $159 for the first year, then $11.99 annual renewal.',
+          topic: 'video_cases'
+        };
+      }
+
+      const asksQuizCards =
+        userNormalized.includes('digital quiz cards') ||
+        userNormalized.includes('quiz cards') ||
+        userNormalized.includes('brainscape');
+      if (asksQuizCards) {
+        return {
+          text: 'Digital Quiz Cards are ESP flashcards on Brainscape using spaced repetition. Price is $59 per course for 90-day access.',
+          topic: 'quiz_cards'
+        };
+      }
+
+      const asksTextbooks =
+        userNormalized.includes('textbook') ||
+        userNormalized.includes('textbooks') ||
+        userNormalized.includes('understanding ultrasound physics') ||
+        userNormalized.includes('art of vascular ultrasound');
+      if (asksTextbooks) {
+        return {
+          text: 'ESP textbooks include Understanding Ultrasound Physics (4th Edition) — $129, and The Art of Vascular Ultrasound — $175. Bulk orders: 5–10 books 5% off; 11–20 books 15% off; 21+ books 25% off.',
+          topic: 'textbooks'
+        };
+      }
+
+      const asksOnDemandCme =
+        userNormalized.includes('on demand cme') ||
+        userNormalized.includes('on-demand cme') ||
+        userNormalized.includes('on demand cmes') ||
+        userNormalized.includes('video cme') ||
+        userNormalized.includes('cme videos');
+      if (asksOnDemandCme) {
+        return {
+          text: 'On-Demand CMEs are self-paced CME courses (typically 1 to 7.5 credits each) with a 90-day completion window. Live webinar registrations separately include 12 SDMS CMEs per course.',
+          topic: 'cmes'
+        };
+      }
+
+      const asksXzone =
+        userNormalized.includes('what is xzone') ||
+        userNormalized.includes('what is x zone') ||
+        userNormalized.includes('what is the xzone') ||
+        userNormalized.includes('what is the x zone') ||
+        userNormalized.includes('describe xzone') ||
+        userNormalized.includes('describe x zone');
+      if (asksXzone) {
+        return {
+          text: 'X-ZONE is ESP’s online bank of registry-style practice questions organized by exam topic to help you target weak spots and improve speed.',
+          topic: 'xzone'
+        };
+      }
+
+      return null;
+    }
+
+    function asksWebinarLoginOrJoin(userNormalized) {
+      return (
+        userNormalized.includes('log on') ||
+        userNormalized.includes('log in') ||
+        userNormalized.includes('login') ||
+        userNormalized.includes('sign in') ||
+        userNormalized.includes('sign-in') ||
+        userNormalized.includes('how do i join') ||
+        userNormalized.includes('how to join') ||
+        userNormalized.includes('where do i join') ||
+        userNormalized.includes('where do i log') ||
+        (userNormalized.includes('join') &&
+          (userNormalized.includes('webinar') || userNormalized.includes('zoom'))) ||
+        userNormalized.includes('access the webinar') ||
+        userNormalized.includes('get into the webinar') ||
+        userNormalized.includes('get on the webinar') ||
+        (userNormalized.includes('attend') &&
+          userNormalized.includes('webinar') &&
+          (userNormalized.includes('how') || userNormalized.includes('can i'))) ||
+        (userNormalized.includes('zoom') &&
+          (userNormalized.includes('link') ||
+            userNormalized.includes('meeting id') ||
+            userNormalized.includes('meeting')) &&
+          (userNormalized.includes('how') || userNormalized.includes('where') || userNormalized.includes('get')))
+      );
+    }
+
+    function getWebinarLoginJoinReply(userNormalized) {
+      if (!userNormalized.includes('webinar') && !userNormalized.includes('zoom')) return null;
+      if (!asksWebinarLoginOrJoin(userNormalized)) return null;
+
+      return {
+        text:
+          'Log in to your ESP account and open your dashboard. Under Webinars, find your upcoming session (the webinar block for your course) — you should see a Join option that opens Zoom in your browser or app. About 30 minutes before start, the Join button typically turns green. ESP also emails information about the webinar and how to join a few days before the event.',
+        topic: 'webinar_join_instructions'
+      };
+    }
+
+    function getGeneralNextWebinarReply(userNormalized) {
+      if (!userNormalized.includes('webinar')) return null;
+      if (asksWebinarLoginOrJoin(userNormalized)) return null;
+
+      const asksNextWebinar =
+        (userNormalized.includes('next') || userNormalized.includes('upcoming')) &&
+        userNormalized.includes('webinar');
+      if (!asksNextWebinar) return null;
+
+      return 'The next listed webinar session is May 15-17. If you share your specialty (for example BR, AE, SPI, MSK), I can give you the exact next date and time for that course.';
+    }
+
+    /**
+     * Definition / value questions about ESP webinars (not dates).
+     * Based on esp-inc.com: live registry review, interactive, workbook + X-ZONE + CMEs.
+     */
+    function getWebinarExplainerReply(userNormalized) {
+      if (!userNormalized.includes('webinar')) return null;
+
+      // Date/schedule questions should use schedule handlers, not this explainer.
+      const asksDateOrSchedule =
+        userNormalized.includes('when') ||
+        userNormalized.includes('next') ||
+        userNormalized.includes('upcoming') ||
+        userNormalized.includes('schedule') ||
+        userNormalized.includes('date') ||
+        userNormalized.includes('which day') ||
+        userNormalized.includes('what time');
+      if (asksDateOrSchedule) return null;
+
+      // Registration "what do I get" is a different FAQ.
+      if (
+        userNormalized.includes('included') ||
+        userNormalized.includes('what do i get') ||
+        userNormalized.includes('what comes with')
+      ) {
+        return null;
+      }
+
+      const asksDefinition =
+        (userNormalized.includes('what is') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('what are') && userNormalized.includes('webinar')) ||
+        userNormalized.includes('what is a webinar') ||
+        userNormalized.includes('what are webinars') ||
+        (userNormalized.includes('explain') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('describe') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('tell me about') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('why should') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('why take') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('why attend') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('should i take') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('worth it') && userNormalized.includes('webinar'));
+
+      if (!asksDefinition) return null;
+
+      return {
+        text:
+          'An ESP webinar is a live, interactive registry review session taught by experienced sonographers. It is designed to help you prepare for ARDMS, CCI, or ARRT exams with focused content that follows the exam outline. Registration typically includes a mailed course workbook, access to the live webinar, 6 weeks of X-ZONE practice questions, and 12 SDMS CME credits when you attend the full session. Sessions are virtual (you join from your ESP dashboard), not in person.',
+        topic: 'webinar_explainer'
+      };
+    }
+
+    /**
+     * Session length / daily hours (not "how long after the webinar to take the exam").
+     */
+    function getWebinarDurationReply(userNormalized) {
+      if (!userNormalized.includes('webinar')) return null;
+
+      const asksExamAfterWebinar =
+        (userNormalized.includes('after') && userNormalized.includes('webinar') &&
+          (userNormalized.includes('exam') || userNormalized.includes('test'))) ||
+        userNormalized.includes('when should i take') ||
+        userNormalized.includes('take my exam') ||
+        userNormalized.includes('how long after');
+      if (asksExamAfterWebinar) return null;
+
+      const asksSessionLength =
+        (userNormalized.includes('how long') && userNormalized.includes('webinar')) ||
+        userNormalized.includes('how many days') && userNormalized.includes('webinar') ||
+        userNormalized.includes('how many hours') && userNormalized.includes('webinar') ||
+        (userNormalized.includes('duration') && userNormalized.includes('webinar')) ||
+        (userNormalized.includes('how long is the session') && userNormalized.includes('webinar'));
+
+      if (!asksSessionLength) return null;
+
+      return {
+        text:
+          'ESP schedules two main formats (all times Central Time): a 3-day weekend (Fri–Sun) where your course usually runs either 8am–12pm CT or 1pm–5pm CT depending on the session; or a 2-day weekend (Sat–Sun) with full days about 8am–3pm CT. Your exact dates and block are shown on the course listing in the webinar schedule.',
+        topic: 'webinar_duration'
+      };
+    }
+
+    function getTextbookDiscountRewatchReply(userNormalized) {
+      const t = userNormalized;
+
+      const mentionsTextbook =
+        t.includes('textbook') ||
+        t.includes('textbooks') ||
+        t.includes('understanding ultrasound physics') ||
+        t.includes('art of vascular') ||
+        t.includes('uup');
+
+      const asksPrice =
+        t.includes('how much') ||
+        t.includes('price') ||
+        t.includes('pricing') ||
+        t.includes('cost');
+
+      const textbookPriceBlurb =
+        'Understanding Ultrasound Physics (4th Edition) is $129. The Art of Vascular Ultrasound is $175. Bulk textbook orders: 5–10 books 5% off; 11–20 books 15% off; 21+ books 25% off.';
+
+      const rewatchBlurb =
+        'Have you already attended this ESP webinar, and have you taken your registry exam since then? If you previously took the webinar, did not pass your registry exam since attending, and have scheduled a new exam date, ESP may offer a rewatch discount of $125 off the regular course price (processed manually in rare cases). The rewatch does not include a workbook, X-ZONE, or CMEs. It can sometimes be arranged after the registration deadline when no workbook is shipped. Email info@esp-inc.com with: (1) official exam results showing your name, subject, and score; (2) your chosen webinar date; (3) confirmation of your new exam appointment.';
+
+      const asksRewatch =
+        t.includes('rewatch') ||
+        t.includes('re watch') ||
+        t.includes('re-watch') ||
+        (t.includes('watch') && t.includes('again') && t.includes('webinar')) ||
+        (t.includes('retake') && (t.includes('webinar') || t.includes('course'))) ||
+        (t.includes('failed') && t.includes('exam') && (t.includes('webinar') || t.includes('course') || t.includes('registry')));
+      if (asksRewatch) {
+        return { text: rewatchBlurb, topic: 'rewatch' };
+      }
+
+      if (mentionsTextbook && asksPrice) {
+        return { text: textbookPriceBlurb, topic: 'textbooks' };
+      }
+
+      if (mentionsTextbook && (t.includes('bulk') || t.includes('volume') || /\b\d+\s*books?\b/.test(t))) {
+        return { text: textbookPriceBlurb, topic: 'textbooks' };
+      }
+
+      if (
+        mentionsTextbook &&
+        t.includes('discount') &&
+        !t.includes('rewatch') &&
+        !t.includes('student') &&
+        !t.includes('military') &&
+        !t.includes('loyalty') &&
+        !t.includes('senior')
+      ) {
+        return {
+          text: `${textbookPriceBlurb} For other ESP discounts (student/military $25, loyalty $50), email info@esp-inc.com.`,
+          topic: 'textbooks'
+        };
+      }
+
+      const asksEspDiscount =
+        t.includes('senior discount') ||
+        t.includes('student discount') ||
+        t.includes('military discount') ||
+        t.includes('loyalty discount') ||
+        t.includes('loyalty') ||
+        ((t.includes('student') || t.includes('military')) && t.includes('discount')) ||
+        (t.includes('discount') &&
+          !mentionsTextbook &&
+          !t.includes('xzone') &&
+          !t.includes('x zone') &&
+          !t.includes('bulk') &&
+          (t.includes('webinar') ||
+            t.includes('course') ||
+            t.includes('register') ||
+            t.includes('esp') ||
+            t.includes('what') ||
+            t.includes('which') ||
+            t.includes('are there') ||
+            t.includes('available') ||
+            t.includes('do you have') ||
+            t.includes('list')));
+      if (asksEspDiscount) {
+        return {
+          text: 'ESP offers a Student and military discounts that is $25 off; a loyalty discount of $50 off may apply if you registered for an ESP webinar in the past year. Email info@esp-inc.com to confirm eligibility.',
+          topic: 'esp_discounts'
+        };
+      }
+
+      return null;
+    }
+
+    function getContextFollowupReply(userNormalized, state) {
+      const asksWhatIsIt =
+        userNormalized === 'what is it' ||
+        userNormalized === 'what is it?' ||
+        userNormalized === 'what is that' ||
+        userNormalized === 'what is that?' ||
+        userNormalized === 'what is this';
+
+      if (!asksWhatIsIt) return null;
+
+      if (state.lastTopic === 'next_webinar' || state.lastIntent === 'schedule') {
+        return 'It means the next available ESP webinar session block is May 15-17. ESP webinars are live virtual registry review classes, and each course in that session has its own time slot (for example AM or PM CT).';
+      }
+
+      if (state.lastTopic === 'xzone') {
+        return 'X-ZONE is ESP’s online registry-style practice question platform. It helps you drill topics, improve speed, and prepare for exam-style questions.';
+      }
+
+      return null;
+    }
+
+    function getActionFollowupReply(userNormalized, userTokens, state) {
+      const rawWordCount = userNormalized ? userNormalized.split(' ').filter(Boolean).length : 0;
+      const isShortFollowup = rawWordCount > 0 && rawWordCount <= 7;
+      if (!isShortFollowup) return null;
+
+      const asksHow =
+        userNormalized === 'how' ||
+        userNormalized === 'how?' ||
+        userNormalized.includes('how do i') ||
+        userNormalized.includes('how can i');
+      const asksEarly =
+        userNormalized.includes('early') ||
+        userNormalized.includes('sooner') ||
+        userNormalized.includes('ahead of time') ||
+        userNormalized.includes('want it early') ||
+        userNormalized.includes('i want it early');
+
+      const asksWhereToSend =
+        userNormalized.includes('where to send') ||
+        userNormalized.includes('where do i send') ||
+        userNormalized.includes('where should i send') ||
+        userNormalized.includes('send where') ||
+        (userNormalized.includes('where') && userNormalized.includes('send'));
+      const asksTypesOrOptions =
+        userNormalized === 'what type' ||
+        userNormalized === 'what types' ||
+        userNormalized.includes('what type') ||
+        userNormalized.includes('what types') ||
+        userNormalized.includes('what options') ||
+        userNormalized.includes('which options') ||
+        userNormalized.includes('what are there') ||
+        userNormalized.includes('types are there');
+
+      if (asksWhereToSend && state.lastActionTarget) {
+        return `Please send it to ${state.lastActionTarget}.`;
+      }
+
+      // Do not treat generic "how..." as extension help when user is asking about CME/credits.
+      if (
+        asksHow &&
+        (userNormalized.includes('cme') ||
+          userNormalized.includes('credit') ||
+          userNormalized.includes('continuing education'))
+      ) {
+        return null;
+      }
+
+      if (asksHow && state.lastTopic === 'xzone_extension') {
+        return 'To request an extension, email info@esp-inc.com and attach your exam appointment confirmation with your name, course, and exam date. ESP can provide a one-time extension up to 6 weeks.';
+      }
+
+      if (asksHow && state.lastTopic === 'cme_certificate_missing') {
+        return 'Log in to SDMS with your webinar email, then go to Learning tab > My SDMS Tracker > Go to Your Learning Center > Completed to download your certificate.';
+      }
+
+      if (asksHow && state.lastTopic === 'workbook_separate_purchase') {
+        return 'Email info@esp-inc.com to check workbook-only availability. If available, pricing is the same as full registration.';
+      }
+
+      if (asksTypesOrOptions && state.lastTopic === 'xzone') {
+        return 'X-ZONE standalone options are 1-day access ($39), 5-day access ($79), and 15-day access ($109). Webinar registration also includes 6 weeks of X-ZONE access.';
+      }
+
+      if (asksEarly && (
+        state.lastTopic === 'workbook_shipping' ||
+        state.lastTopic === 'workbook_separate_purchase' ||
+        state.lastTopic === 'workbook_early_shipping'
+      )) {
+        return 'We can try our best to mail it early based on available workbook stock (often from prior webinar inventory), but it is not guaranteed. Please email info@esp-inc.com and the team can check availability for you.';
+      }
+
+      return null;
+    }
+
+    function getSupportCaseReply(userNormalized, userTokens) {
+      let best = null;
+      let bestScore = 0;
+      for (const entry of SUPPORT_CASES) {
+        let entryScore = 0;
+        let hadDirectPhraseMatch = false;
+        for (const pattern of entry.patterns) {
+          const patternNormalized = normalizeText(pattern);
+          const score = scorePattern(userNormalized, userTokens, pattern);
+          if (userNormalized.includes(patternNormalized)) hadDirectPhraseMatch = true;
+          entryScore = Math.max(entryScore, score);
+        }
+        const overlapCount = tokenize(entry.patterns.join(' '))
+          .filter((t) => userTokens.includes(t)).length;
+        // Avoid broad false positives from single shared words like "webinar".
+        if (!hadDirectPhraseMatch && overlapCount < 2) continue;
+        if (entryScore > bestScore) {
+          bestScore = entryScore;
+          best = entry;
+        }
+      }
+
+      if (!best || bestScore < 3.0) return null;
+      const choices = best.responses || [];
+      if (choices.length === 0) return null;
+      const cursor = responseCursorByIntent[best.id] || 0;
+      const reply = choices[cursor % choices.length];
+      responseCursorByIntent[best.id] = cursor + 1;
+      return { text: reply, showLiveAgent: false, intent: best.id };
+    }
+
+    function findCourseKey(userNormalized, userTokens = []) {
+      // "adult" alone (e.g. "for adult" after a webinar date question) means Adult Echo — not video case studies.
+      if (
+        userTokens.includes('adult') &&
+        !userNormalized.includes('pediatric') &&
+        !userNormalized.includes('pediatrics') &&
+        !userNormalized.includes('video case') &&
+        !userNormalized.includes('case stud') &&
+        !userNormalized.includes('digital case') &&
+        !userNormalized.includes('test and learn')
+      ) {
+        return 'ae';
+      }
+      for (const [key, aliases] of Object.entries(COURSE_ALIASES)) {
+        for (const alias of aliases) {
+          const aliasNormalized = normalizeText(alias);
+          // Short aliases like "ab", "ae", "ob" should only match as full tokens,
+          // otherwise words like "about" incorrectly match "ab".
+          if (aliasNormalized.length <= 3 && !aliasNormalized.includes(' ')) {
+            if (userTokens.includes(aliasNormalized)) return key;
+          } else if (userNormalized.includes(aliasNormalized)) {
+            return key;
+          }
+        }
+      }
+      return null;
+    }
+
+    function getWebinarCoursePriceReply(userNormalized, userTokens) {
+      const asksPrice =
+        userNormalized.includes('how much') ||
+        userNormalized.includes('price') ||
+        userNormalized.includes('cost') ||
+        userNormalized.includes('pricing');
+
+      if (!asksPrice) return null;
+
+      if (
+        userNormalized.includes('xzone') ||
+        userNormalized.includes('x zone') ||
+        userNormalized.includes('textbook') ||
+        userNormalized.includes('quiz card') ||
+        userNormalized.includes('brainscape')
+      ) {
+        return null;
+      }
+
+      const mentionsWebinar =
+        userNormalized.includes('webinar') ||
+        userNormalized.includes('registry review') ||
+        (userNormalized.includes('review') && userNormalized.includes('course'));
+
+      if (!mentionsWebinar) return null;
+
+      const course = findCourseKey(userNormalized, userTokens);
+      if (!course) return null;
+
+      const dollars = WEBINAR_PRICE_BY_COURSE[course];
+      if (dollars == null) return null;
+
+      const tierLabel =
+        dollars === 325 ? 'core course' : dollars === 375 ? 'specialty course' : 'MD-led MSK';
+
+      return `The ${COURSE_NAMES[course]} webinar is $${dollars} (${tierLabel} pricing on the current schedule). Registering for both AM and PM in the same 3-day weekend saves $50 per course.`;
+    }
+
+    function findMonthKey(userNormalized) {
+      const monthNames = {
+        january: 'jan', jan: 'jan',
+        february: 'feb', feb: 'feb',
+        march: 'mar', mar: 'mar',
+        april: 'apr', apr: 'apr',
+        may: 'may',
+        june: 'jun', jun: 'jun',
+        july: 'jul', jul: 'jul',
+        august: 'aug', aug: 'aug',
+        september: 'sep', sep: 'sep',
+        october: 'oct', oct: 'oct',
+        november: 'nov', nov: 'nov',
+        december: 'dec', dec: 'dec'
+      };
+      for (const [token, month] of Object.entries(monthNames)) {
+        if (userNormalized.includes(token)) return month;
+      }
+      return null;
+    }
+
+    function getCurrentMonthKey() {
+      const idx = new Date().getMonth();
+      return MONTH_ORDER[idx] || 'jan';
+    }
+
+    function getMonthRangeDays(monthKey) {
+      const label = MONTH_LABEL[monthKey] || '';
+      const match = label.match(/(\d+)\s*-\s*(\d+)/);
+      if (!match) return { startDay: 1, endDay: 31 };
+      return { startDay: Number(match[1]), endDay: Number(match[2]) };
+    }
+
+    function getNextOfferedSession(course, referenceDate = new Date()) {
+      const currentMonthIdx = referenceDate.getMonth();
+      const currentDay = referenceDate.getDate();
+
+      for (const monthKey of MONTH_ORDER) {
+        const time = SCHEDULE_BY_MONTH[monthKey]?.[course];
+        if (!time) continue;
+
+        const sessionMonthIdx = MONTH_TO_INDEX[monthKey];
+        const { endDay } = getMonthRangeDays(monthKey);
+
+        // Future months in current year are valid.
+        if (sessionMonthIdx > currentMonthIdx) return { month: monthKey, time };
+        // Current month is valid only if session has not ended yet.
+        if (sessionMonthIdx === currentMonthIdx && endDay >= currentDay) return { month: monthKey, time };
+      }
+
+      // If no remaining session this year, return the first available next year.
+      for (const monthKey of MONTH_ORDER) {
+        const time = SCHEDULE_BY_MONTH[monthKey]?.[course];
+        if (time) return { month: monthKey, time };
+      }
+
+      return null;
+    }
+
+    function getScheduleReply(userNormalized, userTokens, state) {
+      const wantsFullSchedule =
+        (userNormalized.includes('show') || userNormalized.includes('full') || userNormalized.includes('entire')) &&
+        userNormalized.includes('schedule');
+
+      if (wantsFullSchedule) {
+        const lines = ['2026 schedule (all times CT):'];
+        for (const m of MONTH_ORDER) {
+          const entries = [];
+          for (const [course, time] of Object.entries(SCHEDULE_BY_MONTH[m])) {
+            entries.push(`${course.toUpperCase()} ${time}`);
+          }
+          lines.push(`${MONTH_LABEL[m]}: ${entries.join(' | ')}`);
+        }
+        return lines.join('\n');
+      }
+
+      const wantsAllDates =
+        userNormalized.includes('all dates') ||
+        userNormalized.includes('all the dates') ||
+        userNormalized.includes('list all') ||
+        userNormalized.includes('full list') ||
+        userNormalized.includes('every date') ||
+        userNormalized.includes('runs on');
+
+      const asksSchedule =
+        userNormalized.includes('schedule') ||
+        userNormalized.includes('date') ||
+        userNormalized.includes('when') ||
+        userNormalized.includes('when can i take') ||
+        userNormalized.includes('what date') ||
+        userNormalized.includes('available') ||
+        userNormalized.includes('offered') ||
+        userNormalized.includes('have') ||
+        userNormalized.includes('next webinar') ||
+        userNormalized.includes('upcoming webinar') ||
+        userNormalized.includes('earliest') ||
+        userNormalized.includes('soonest');
+
+      let course = findCourseKey(userNormalized, userTokens);
+      const month = findMonthKey(userNormalized);
+      const rawWords = userNormalized.split(' ').filter(Boolean);
+      const isShortFollowup = rawWords.length > 0 && rawWords.length <= 6;
+      const followupForPriorNext =
+        !asksSchedule &&
+        !month &&
+        !!course &&
+        isShortFollowup &&
+        state.lastIntent === 'schedule' &&
+        state.lastAskedNextWebinar;
+      if (!asksSchedule && !followupForPriorNext) return null;
+      if (!course && state.lastIntent === 'schedule' && state.lastCourse) course = state.lastCourse;
+
+      if (!course) return null;
+
+      if (month) {
+        const time = SCHEDULE_BY_MONTH[month]?.[course];
+        if (time) {
+          return {
+            text: `${COURSE_NAMES[course]} is offered ${MONTH_LABEL[month]} at ${time} CT.`,
+            intent: 'schedule',
+            course,
+            askedNext: false
+          };
+        }
+        return {
+          text: `${COURSE_NAMES[course]} is not scheduled in ${month.toUpperCase()} on the current 2026 grid.`,
+          intent: 'schedule',
+          course,
+          askedNext: false
+        };
+      }
+
+      const asksNext =
+        userNormalized.includes('next') ||
+        userNormalized.includes('upcoming') ||
+        userNormalized.includes('soonest') ||
+        userNormalized.includes('closest') ||
+        userNormalized.includes('whens the next webinar') ||
+        followupForPriorNext;
+
+      if (asksNext && !wantsAllDates) {
+        const next = getNextOfferedSession(course, new Date());
+        if (!next) return null;
+        return {
+          text: `The next ${COURSE_NAMES[course]} webinar is ${MONTH_LABEL[next.month]}, ${next.time} CT.`,
+          intent: 'schedule',
+          course,
+          askedNext: true
+        };
+      }
+
+      const offered = [];
+      for (const m of MONTH_ORDER) {
+        const time = SCHEDULE_BY_MONTH[m]?.[course];
+        if (time) offered.push(`${MONTH_LABEL[m]} (${time} CT)`);
+      }
+      if (offered.length === 0) return null;
+      return {
+        text: `${COURSE_NAMES[course]} runs on: ${offered.join(', ')}.`,
+        intent: 'schedule',
+        course,
+        askedNext: false
+      };
+    }
+
+    function getBotReply(userText) {
+      const userNormalized = applyRelatedQuestionParaphrases(
+        collapseSpacedTypos(normalizeText(userText))
+      );
+      const userTokens = tokenizeFromNormalized(userNormalized);
+
+      const contextFollowup = getContextFollowupReply(userNormalized, conversationState);
+      if (contextFollowup) return { text: contextFollowup, showLiveAgent: false };
+
+      if (seemsGibberish(userText)) {
+        return {
+          text: CONTACT_OR_LIVE_AGENT,
+          showLiveAgent: true,
+          clarifyOptions: []
+        };
+      }
+
+      const refundTransferReply = getRefundTransferPriorityReply(userNormalized);
+      if (refundTransferReply) {
+        conversationState.lastTopic = refundTransferReply.topic;
+        conversationState.lastIntent = refundTransferReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = null;
+        return { text: refundTransferReply.text, showLiveAgent: false };
+      }
+
+      const allianceProgramReply = getAllianceProgramReply(userNormalized);
+      if (allianceProgramReply) {
+        conversationState.lastTopic = allianceProgramReply.topic;
+        conversationState.lastIntent = allianceProgramReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = 'info@esp-inc.com';
+        return { text: allianceProgramReply.text, showLiveAgent: false };
+      }
+
+      const purchaseOrderReply = getPurchaseOrderReply(userNormalized);
+      if (purchaseOrderReply) {
+        conversationState.lastTopic = purchaseOrderReply.topic;
+        conversationState.lastIntent = purchaseOrderReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = 'info@esp-inc.com';
+        return { text: purchaseOrderReply.text, showLiveAgent: false };
+      }
+
+      const xzoneContextPriceReplyEarly = getXzoneContextPriceReply(userNormalized, conversationState);
+      if (xzoneContextPriceReplyEarly) {
+        conversationState.lastTopic = 'xzone';
+        conversationState.lastIntent = 'xzone';
+        conversationState.lastAskedNextWebinar = false;
+        return { text: xzoneContextPriceReplyEarly, showLiveAgent: false };
+      }
+
+      const contextualShortPriceReply = getContextualShortPriceReply(userNormalized, conversationState);
+      if (contextualShortPriceReply) {
+        conversationState.lastTopic = contextualShortPriceReply.topic;
+        conversationState.lastIntent = contextualShortPriceReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = null;
+        return { text: contextualShortPriceReply.text, showLiveAgent: false };
+      }
+
+      const priorityPolicyReply = getPriorityPolicyReply(userNormalized);
+      if (priorityPolicyReply) {
+        conversationState.lastTopic = priorityPolicyReply.topic || conversationState.lastTopic;
+        conversationState.lastActionTarget = priorityPolicyReply.actionTarget || conversationState.lastActionTarget;
+        conversationState.lastIntent = priorityPolicyReply.topic || conversationState.lastIntent;
+        return { text: priorityPolicyReply.text, showLiveAgent: false };
+      }
+
+      const webinarLoginJoinReply = getWebinarLoginJoinReply(userNormalized);
+      if (webinarLoginJoinReply) {
+        conversationState.lastTopic = webinarLoginJoinReply.topic;
+        conversationState.lastIntent = webinarLoginJoinReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = 'info@esp-inc.com';
+        return { text: webinarLoginJoinReply.text, showLiveAgent: false };
+      }
+
+      const webinarDurationReply = getWebinarDurationReply(userNormalized);
+      if (webinarDurationReply) {
+        conversationState.lastTopic = webinarDurationReply.topic;
+        conversationState.lastIntent = webinarDurationReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = null;
+        return { text: webinarDurationReply.text, showLiveAgent: false };
+      }
+
+      const webinarExplainerReply = getWebinarExplainerReply(userNormalized);
+      if (webinarExplainerReply) {
+        conversationState.lastTopic = webinarExplainerReply.topic;
+        conversationState.lastIntent = webinarExplainerReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = null;
+        return { text: webinarExplainerReply.text, showLiveAgent: false };
+      }
+
+      const textbookDiscountRewatchReply = getTextbookDiscountRewatchReply(userNormalized);
+      if (textbookDiscountRewatchReply) {
+        conversationState.lastTopic = textbookDiscountRewatchReply.topic;
+        conversationState.lastIntent = textbookDiscountRewatchReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = 'info@esp-inc.com';
+        return { text: textbookDiscountRewatchReply.text, showLiveAgent: false };
+      }
+
+      const cmeContextReply = getCmeContextReply(userNormalized);
+      if (cmeContextReply) {
+        conversationState.lastTopic = cmeContextReply.topic;
+        conversationState.lastIntent = cmeContextReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget =
+          cmeContextReply.topic === 'cme_certificate_missing' ? 'learning@sdms.org' : null;
+        return { text: cmeContextReply.text, showLiveAgent: false };
+      }
+
+      const webinarCoursePriceReply = getWebinarCoursePriceReply(userNormalized, userTokens);
+      if (webinarCoursePriceReply) {
+        conversationState.lastTopic = 'webinar_pricing';
+        conversationState.lastIntent = 'webinar_pricing';
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = null;
+        return { text: webinarCoursePriceReply, showLiveAgent: false };
+      }
+
+      const specificTopicReply = getSpecificTopicReply(userNormalized);
+      if (specificTopicReply) {
+        conversationState.lastTopic = specificTopicReply.topic;
+        conversationState.lastIntent = specificTopicReply.topic;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastActionTarget = null;
+        return { text: specificTopicReply.text, showLiveAgent: false };
+      }
+
+      const specificPriceReply = getSpecificPriceReply(userNormalized);
+      if (specificPriceReply) {
+        conversationState.lastTopic = 'xzone';
+        conversationState.lastIntent = 'xzone';
+        conversationState.lastAskedNextWebinar = false;
+        return { text: specificPriceReply, showLiveAgent: false };
+      }
+
+      const actionFollowup = getActionFollowupReply(userNormalized, userTokens, conversationState);
+      if (actionFollowup) {
+        if (actionFollowup.includes('X-ZONE')) {
+          conversationState.lastTopic = 'xzone';
+          conversationState.lastIntent = 'xzone';
+        }
+        return { text: actionFollowup, showLiveAgent: false };
+      }
+
+      const scheduleReply = getScheduleReply(userNormalized, userTokens, conversationState);
+      if (scheduleReply) {
+        conversationState.lastIntent = scheduleReply.intent;
+        conversationState.lastCourse = scheduleReply.course || conversationState.lastCourse;
+        conversationState.lastAskedNextWebinar = !!scheduleReply.askedNext;
+        conversationState.lastTopic = 'schedule';
+        conversationState.lastActionTarget = null;
+        return { text: scheduleReply.text, showLiveAgent: false };
+      }
+
+      const generalNextWebinarReply = getGeneralNextWebinarReply(userNormalized);
+      if (generalNextWebinarReply) {
+        conversationState.lastIntent = 'schedule';
+        conversationState.lastAskedNextWebinar = true;
+        conversationState.lastTopic = 'next_webinar';
+        conversationState.lastActionTarget = null;
+        return { text: generalNextWebinarReply, showLiveAgent: false };
+      }
+
+      const supportCaseReply = getSupportCaseReply(userNormalized, userTokens);
+      if (supportCaseReply) {
+        conversationState.lastIntent = supportCaseReply.intent;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastTopic = supportCaseReply.intent;
+        conversationState.lastActionTarget =
+          supportCaseReply.intent === 'xzone_extension' ||
+          supportCaseReply.intent === 'workbook_separate_purchase' ||
+          supportCaseReply.intent === 'pending_purchase_declined' ||
+          supportCaseReply.intent === 'webinar_virtual_and_echo_guidance' ||
+          supportCaseReply.intent === 'webinar_join_instructions'
+            ? 'info@esp-inc.com'
+            : supportCaseReply.intent === 'cme_certificate_missing'
+              ? 'learning@sdms.org'
+              : null;
+        return { text: supportCaseReply.text, showLiveAgent: false };
+      }
+
+      let bestEntry = null;
+      let bestScore = 0;
+
+      for (const entry of KNOWLEDGE_BASE) {
+        let entryScore = 0;
+        for (const pattern of entry.patterns) {
+          entryScore = Math.max(entryScore, scorePattern(userNormalized, userTokens, pattern));
+        }
+
+        if (entryScore > bestScore) {
+          bestScore = entryScore;
+          bestEntry = entry;
+        }
+      }
+
+      const CLARIFY_REPHRASE_MISSPELLING =
+        "I am not quite sure I understood that—your message may have a tough misspelling or extra spaces between letters. Please rephrase or ask again in normal spelling (for example type refund instead of r e f u n d).";
+
+      const LOW_CONF_CONTACT = CONTACT_OR_LIVE_AGENT;
+
+      // Very low confidence: rephrase prompt only when typing looks like misspelling / split letters; otherwise prompt email or live agent.
+      if (!bestEntry || bestScore < 1.7) {
+        const looksLikeMisspellingOrSplitLetters = seemsFragmentaryLetterSpacing(userNormalized);
+        return {
+          text: looksLikeMisspellingOrSplitLetters ? CLARIFY_REPHRASE_MISSPELLING : LOW_CONF_CONTACT,
+          showLiveAgent: true,
+          clarifyOptions: []
+        };
+      }
+
+      // Middling score + split-letter typing: do not guess a broad wrong intent—ask for a cleaner rephrase.
+      if (
+        bestScore < 3.0 &&
+        seemsFragmentaryLetterSpacing(userNormalized) &&
+        (bestEntry.id === 'registration_includes' || bestEntry.id === 'study_tools')
+      ) {
+        return {
+          text: CLARIFY_REPHRASE_MISSPELLING,
+          showLiveAgent: true,
+          clarifyOptions: []
+        };
+      }
+      const choices = bestEntry.responses || (bestEntry.answer ? [bestEntry.answer] : []);
+      if (choices.length === 0) {
+        return { text: FALLBACK_ANSWER, showLiveAgent: true };
+      }
+      const cursor = responseCursorByIntent[bestEntry.id] || 0;
+      const reply = choices[cursor % choices.length];
+      responseCursorByIntent[bestEntry.id] = cursor + 1;
+      if (bestEntry.id === 'next_webinar') {
+        // Treat generic "next webinar" replies as schedule context so follow-ups like
+        // "for msk" can inherit intent and resolve correctly.
+        conversationState.lastIntent = 'schedule';
+        conversationState.lastAskedNextWebinar = true;
+        conversationState.lastTopic = 'next_webinar';
+        conversationState.lastActionTarget = null;
+      } else {
+        conversationState.lastIntent = bestEntry.id;
+        conversationState.lastAskedNextWebinar = false;
+        conversationState.lastTopic = bestEntry.id;
+        conversationState.lastActionTarget =
+          bestEntry.id === 'after_pass' || bestEntry.id === 'contact' || bestEntry.id === 'live_agent'
+            ? 'info@esp-inc.com'
+            : null;
+      }
+      return {
+        text: reply,
+        showLiveAgent: bestEntry.id === 'live_agent',
+        clarifyOptions: []
+      };
+    }
+
+    async function sendMessage() {
+      if (isLoading) return;
+
+      const input = document.getElementById('userInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      input.style.height = 'auto';
+      isLoading = true;
+      document.getElementById('sendBtn').disabled = true;
+      document.getElementById('suggestions').style.display = 'none';
+
+      appendMessage('user', text);
+      showTyping();
+
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        const reply = getBotReply(text);
+
+        removeTyping();
+        appendMessage('bot', reply.text, {
+          showLiveAgent: reply.showLiveAgent,
+          clarifyOptions: reply.clarifyOptions || []
+        });
+      } catch (err) {
+        removeTyping();
+        appendMessage('bot', `Sorry, something went wrong: ${err.message}.`);
+      }
+
+      isLoading = false;
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+    }
+
+    initializeBotAvatars();
+  </script>
+</body>
+</html> 
